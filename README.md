@@ -1,6 +1,3 @@
-# q_learning_project
-
-
 # Q Learning Project
 ## Team Members:
 - Tianle Liu
