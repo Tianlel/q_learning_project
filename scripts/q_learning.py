@@ -3,6 +3,10 @@
 import rospy
 import numpy as np
 import os
+import csv
+from QMatrix.msg import q_matrix
+from QLearningReward import reward
+from RobotMoveDBToBlock import robot_action
 
 # Path of directory on where this file is located
 path_prefix = os.path.dirname(__file__) + "/action_states/"
@@ -44,9 +48,29 @@ class QLearning(object):
         self.states = np.loadtxt(path_prefix + "states.txt")
         self.states = list(map(lambda x: list(map(lambda y: int(y), x)), self.states))
 
+        # Initialize Q matrix
+        self.qmatrix = [[0 for action in range(9)] for state in range(64)]
+            
+        # publisher for QMatrix
+        self.qmatrix_pub = rospy.Publisher("q_matrix", QMatrix, queue_size=10)
+
+        # subscribe to reward
+        rospy.Subscriber("reward", QLearningReward, self.calc_q_matrix)
+
+        # publisher for robot action
+        self.robot_action_pub = rospy.Publisher("robot_action", RobotMoveDBToBlock, queue_size=10)
+    
+
+    def calc_q_matrix(self, data):
+        # TODO
+        return
+
     def save_q_matrix(self):
         # TODO: You'll want to save your q_matrix to a file once it is done to
         # avoid retraining
+        with open('file.csv', 'w', newline='') as fp:
+            writer = csv.writer(fp)
+            writer.writerows(self.qmatrix)
         return
 
 if __name__ == "__main__":
