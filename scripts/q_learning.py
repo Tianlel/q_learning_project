@@ -4,9 +4,9 @@ import rospy
 import numpy as np
 import os
 import csv
-from QMatrix.msg import q_matrix
-from QLearningReward import reward
-from RobotMoveDBToBlock import robot_action
+from q_learning_project.msg import QMatrix, QMatrixRow
+from q_learning_project.msg import QLearningReward
+from q_learning_project.msg import RobotMoveDBToBlock
 
 # Path of directory on where this file is located
 path_prefix = os.path.dirname(__file__) + "/action_states/"
