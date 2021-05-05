@@ -106,6 +106,9 @@ class QLearning(object):
 
         self.qmatrix[self.state][self.a_t] = q_t + self.alpha*(data.reward + self.gamma*max_q - q_t)
 
+        # update current state
+        self.state = self.next_state
+
         # publish Q matrix
         # TODO
 
