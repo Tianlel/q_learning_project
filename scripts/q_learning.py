@@ -4,6 +4,7 @@ import rospy
 import numpy as np
 import os
 import csv
+import random import choice, randint
 from q_learning_project.msg import QMatrix, QMatrixRow
 from q_learning_project.msg import QLearningReward
 from q_learning_project.msg import RobotMoveDBToBlock
@@ -37,7 +38,6 @@ class QLearning(object):
             self.actions
         ))
 
-
         # Fetch states. There are 64 states. Each row index corresponds to the
         # state number, and the value is a list of 3 items indicating the positions
         # of the red, green, blue dumbbells respectively.
@@ -55,23 +55,77 @@ class QLearning(object):
         self.qmatrix_pub = rospy.Publisher("q_matrix", QMatrix, queue_size=10)
 
         # subscribe to reward
-        rospy.Subscriber("reward", QLearningReward, self.calc_q_matrix)
+        rospy.Subscriber("reward", QLearningReward, self.update_q_matrix)
 
         # publisher for robot action
         self.robot_action_pub = rospy.Publisher("robot_action", RobotMoveDBToBlock, queue_size=10)
     
+        # initialize RobotMoveDBToBlock message
+        self.robot_action = RobotMoveDBToBlock()
 
-    def calc_q_matrix(self, data):
-        # TODO
+        # action performed at time t
+        self.a_t = None
+
+        # state at time t, initialized to the orginial state
+        self.state = 0
+        # state at time t+1
+        self.next_state = None
+
+        # learning rate
+        self.alpha = 1
+
+        # discount factor
+        self.gamma = 0.8
+
+        self.converged = False
+
+    def perform_action(self):       
+        # randomly select a valid action 
+        valid_actions = [x for x in self.action_matrix[self.state] if x >= -1]
+        a_t = choice(valid_actions)
+            
+        # update action at time t
+        self.a_t = a_t
+
+        # update state at time t+1
+        self.next_state = self.action_matrix[self.state].index(a_t)
+
+        # perform action
+        action = self.actions[self.a_t]
+        self.robot_action.robot_db = action.get("dumbbell")
+        self.robot_action.block_id = action.get("block")
+        self.robot_action_pub.publish(self.robot_action_pub)
         return
+     
+    def update_q_matrix(self, data):
+        # update Q matrix given action and reward
+        q_t = self.qmatrix[self.state][self.a_t]
 
+        # find maximum q value for the next state
+        max_q = max(self.qmatrix[self.next_state])
+
+        self.qmatrix[self.state][self.a_t] = q_t + self.alpha*(data.reward + self.gamma*max_q - q_t)
+
+        # publish Q matrix
+        # TODO
+
+        # check if the Q matrix has converged 
+        # TODO
+       
     def save_q_matrix(self):
-        # TODO: You'll want to save your q_matrix to a file once it is done to
-        # avoid retraining
         with open('file.csv', 'w', newline='') as fp:
             writer = csv.writer(fp)
             writer.writerows(self.qmatrix)
         return
 
+    def run(self):
+        t = 0
+        rospy.spin()
+        while self.converged is False:
+            self.perform_action()
+
+        self.save_q_matrix()
+        
 if __name__ == "__main__":
     node = QLearning()
+    node.run()
