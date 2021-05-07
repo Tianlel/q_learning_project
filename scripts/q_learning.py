@@ -4,6 +4,7 @@ import rospy
 import numpy as np
 import os
 import csv
+import time
 from random import choice, randint
 from q_learning_project.msg import QMatrix, QMatrixRow
 from q_learning_project.msg import QLearningReward
@@ -11,6 +12,7 @@ from q_learning_project.msg import RobotMoveDBToBlock
 
 # Path of directory on where this file is located
 path_prefix = os.path.dirname(__file__) + "/action_states/"
+t0 = time.time()
 
 class QLearning(object):
     def __init__(self):
@@ -77,10 +79,11 @@ class QLearning(object):
 
         # learning rate
         self.alpha = 1
-
         # discount factor
         self.gamma = 0.8
-
+        # count how long the values of Q matrix have stayed the same
+        self.convergence_cnt = 0
+        
         self.reward_received = True
         self.converged = False
 
@@ -123,14 +126,16 @@ class QLearning(object):
     def update_q_matrix(self, data):
         self.reward_received = True
 
-        # update Q matrix given action and reward
-        q_t = self.qmatrix.q_matrix[self.state].q_matrix_row[self.action]
+        # get current Q value given state and action
+        q = self.qmatrix.q_matrix[self.state].q_matrix_row[self.action]
 
         # find maximum q value for the next state
         max_q = max(self.qmatrix.q_matrix[self.next_state].q_matrix_row)
 
-        self.qmatrix.q_matrix[self.state].q_matrix_row[self.action] = int(q_t + self.alpha*(data.reward + self.gamma*max_q - q_t))
-        print(q_t + self.alpha*(data.reward + self.gamma*max_q - q_t))
+        # calculate new Q value
+        q_new = int(q + self.alpha*(data.reward + self.gamma*max_q - q))
+        self.qmatrix.q_matrix[self.state].q_matrix_row[self.action] = q_new
+        #print(q + self.alpha*(data.reward + self.gamma*max_q - q_t))
         # update current state
         self.state = self.next_state
 
@@ -138,12 +143,27 @@ class QLearning(object):
         self.qmatrix_pub.publish(self.qmatrix)
 
         # check if the Q matrix has converged 
-        # TODO
-       
+        if q == q_new:
+            self.convergence_cnt += 1
+        else:
+            self.convergence_cnt = 0
+
+        if self.convergence_cnt == 50:
+            print("self.convergence_cnt reached 50 at "+str(time.time()-t0))
+        if self.convergence_cnt == 100:
+            print("self.convergence_cnt reached 100 at "+str(time.time()-t0))
+        if self.convergence_cnt == 150:
+            print("self.convergence_cnt reached 150 at "+str(time.time()-t0))
+
+        # if the Q matrix has remained the same for 200 steps, then we consider it to be converged
+        if self.convergence_cnt == 200:
+            self.converged = True
+
     def save_q_matrix(self):
-        with open('file.csv', 'w', newline='') as fp:
+        with open('qmatrix.csv', 'w', newline='') as fp:
             writer = csv.writer(fp)
-            writer.writerows(self.qmatrix)
+            for state in range(64):
+                writer.writerow(self.qmatrix.q_matrix[state].q_matrix_row)
         return
 
     def run(self):
