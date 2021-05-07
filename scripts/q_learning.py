@@ -50,7 +50,8 @@ class QLearning(object):
         self.states = list(map(lambda x: list(map(lambda y: int(y), x)), self.states))
 
         # Initialize Q matrix
-        self.qmatrix = [[0 for action in range(9)] for state in range(64)]
+        self.qmatrix = QMatrix()
+        self.qmatrix.q_matrix = [QMatrixRow(q_matrix_row = [0 for action in range(9)]) for state in range(64)]
             
         # publisher for QMatrix
         self.qmatrix_pub = rospy.Publisher("q_matrix", QMatrix, queue_size=10)
@@ -123,18 +124,18 @@ class QLearning(object):
         self.reward_received = True
 
         # update Q matrix given action and reward
-        q_t = self.qmatrix[self.state][self.action]
+        q_t = self.qmatrix.q_matrix[self.state].q_matrix_row[self.action]
 
         # find maximum q value for the next state
-        max_q = max(self.qmatrix[self.next_state])
+        max_q = max(self.qmatrix.q_matrix[self.next_state].q_matrix_row)
 
-        self.qmatrix[self.state][self.action] = q_t + self.alpha*(data.reward + self.gamma*max_q - q_t)
-
+        self.qmatrix.q_matrix[self.state].q_matrix_row[self.action] = int(q_t + self.alpha*(data.reward + self.gamma*max_q - q_t))
+        print(q_t + self.alpha*(data.reward + self.gamma*max_q - q_t))
         # update current state
         self.state = self.next_state
 
         # publish Q matrix
-        # TODO
+        self.qmatrix_pub.publish(self.qmatrix)
 
         # check if the Q matrix has converged 
         # TODO
