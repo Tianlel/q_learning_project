@@ -57,9 +57,10 @@ class QLearning(object):
 
         # subscribe to reward
         rospy.Subscriber("reward", QLearningReward, self.update_q_matrix)
+        rospy.sleep(1)
 
         # publisher for robot action
-        self.robot_action_pub = rospy.Publisher("robot_action", RobotMoveDBToBlock, queue_size=10)
+        self.robot_action_pub = rospy.Publisher("/q_learning/robot_action", RobotMoveDBToBlock, queue_size=10)
         rospy.sleep(1)
 
         # initialize RobotMoveDBToBlock message
@@ -84,9 +85,9 @@ class QLearning(object):
 
     def perform_action(self):   
         print(self.reward_received)
-        if not self.reward_received:
-            rospy.sleep(1)
-            return
+        #if not self.reward_received:
+        #    rospy.sleep(1)
+        #    return
 
         # randomly select a valid action 
         valid_actions = [x for x in self.action_matrix[self.state] if x > -1]
