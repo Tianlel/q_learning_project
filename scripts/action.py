@@ -79,12 +79,19 @@ class Action:
         # converts the incoming ROS message to cv2 format and HSV (hue, saturation, value)
         self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
         self.hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
+        # TESTING FOR NOW
         print(self.state)
+        if self.state == 'BLOCK1':
+            self.move_to_block('1')
         if self.state == 'GREEN':
             self.move_to_dumbell("green")
         if self.state == 'PICKUP':
             self.pick_up_gripper()
+        if self.state == 'STOP':
+            rospy.sleep(2)
+            self.drop_gripper()
 
+    # Publish movement
     def pub_cmd_vel(self, lin, ang):
         self.twist.linear.x = lin
         self.twist.angular.z = ang
@@ -112,14 +119,14 @@ class Action:
             err = w/2 - cx
             k_p = 1.0 / 1000.0
             lin_k = 0.3
-            if dist <= 0.23:
+            if dist <= 0.22:
                 self.state = 'PICKUP'
                 self.pub_cmd_vel(0, 0)
                 return
             if dist >= 0.5:
                 lin = 0.1
             else:
-                linerr = dist - 0.23
+                linerr = dist - 0.22
                 lin = linerr * lin_k
             ang = k_p * err
             self.pub_cmd_vel(lin, ang)
@@ -141,43 +148,71 @@ class Action:
     
     # Gripper with dumbell
     def pick_up_gripper(self):
-        arm_joint_goal = [0.0, 0, 0, -1.2]
-        gripper_joint_goal = [0.001, 0.001]
-        self.move_group_gripper.go(gripper_joint_goal, wait=True)
+        arm_joint_goal = [0.0, 0.10, -0.5, -0.2]
+        gripper_joint_goal = [0.004, 0.004]
+        self.move_group_arm.go(arm_joint_goal, wait=True)
+        self.move_group_gripper.go(gripper_joint_goal, wait=True) 
+        self.move_group_arm.stop()
         self.move_group_gripper.stop()
+        self.state = 'STOP'
+        init_time = rospy.Time.now().to_sec()
+        while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 1.0:
+            self.pub_cmd_vel(-0.3, 0)
+        self.pub_cmd_vel(0,0)
+
+    # Drop dumbell from gripper
+    def drop_gripper(self):
+        arm_joint_goal = [0.0, 0.7, -0.260, -0.450]
+        gripper_joint_goal = [0.01, 0.01]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_arm.stop()
-        self.state = 'STOP'
-        
+        self.move_group_gripper.go(gripper_joint_goal, wait=True)
+        self.move_group_gripper.stop()
+        rospy.sleep(1)
+        while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 1.0:
+            self.pub_cmd_vel(-0.3, 0)
+        self.pub_cmd_vel(0,0)
+
+    
     def determine_block_center(self, box):
         return box[1][0] - box[0][0]
     """
     def move_to_block(self, block):
         if not self.initialized or self.hsv is None or self.image is None or self.laserscan is None:
             return
-        #self.pub_cmd_vel(0, 0)
+        self.pub_cmd_vel(0, 0)
+        
+        # front distance
+        dist = min(self.laserscan_front)
+
         images = [self.image]
         prediction_groups = self.pipeline.recognize(images)
         print(prediction_groups[0])
         predictions = dict(prediction_groups[0])
+        cv2.imshow("window", self.image)
+        cv2.waitKey(3)
+
+        
         if block not in predictions:
-            self.pub_cmd_vel(0, 0.2)
+            ang = 0.3
+            lin = 0.0
         else:
             cx = self.determine_block_center(predictions[block].tolist())
             h, w, d = self.image.shape
             err = w/2 - cx
             k_p = 1.0 / 1000.0
             lin_k = 0.2
-            if self.laserscan[0] >= 0.5:
+            if dist >= 0.5:
                 lin = 0.2
             else:
-                linerr = self.laserscan[0] - 0.2
+                linerr = dist - 0.2
                 lin = linerr * lin_k
             ang = k_p * err
+        init_time = rospy.Time.now().to_sec()
+        while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 1.0:
             self.pub_cmd_vel(lin, ang)
-        rospy.sleep(2)
-        self.pub_cmd_vel(0, 0)
-    """
+        self.pub_cmd_vel(0,0)
+        """
 
     def run(self):
         rospy.spin()
