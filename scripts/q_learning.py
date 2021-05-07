@@ -56,7 +56,7 @@ class QLearning(object):
         self.qmatrix_pub = rospy.Publisher("q_matrix", QMatrix, queue_size=10)
 
         # subscribe to reward
-        rospy.Subscriber("reward", QLearningReward, self.update_q_matrix)
+        rospy.Subscriber("/q_learning/reward", QLearningReward, self.update_q_matrix)
         rospy.sleep(1)
 
         # publisher for robot action
@@ -84,10 +84,10 @@ class QLearning(object):
         self.converged = False
 
     def perform_action(self):   
-        print(self.reward_received)
-        #if not self.reward_received:
-        #    rospy.sleep(1)
-        #    return
+        # wait till an reward is received
+        if not self.reward_received:
+            rospy.sleep(1)
+            return
 
         # randomly select a valid action 
         valid_actions = [x for x in self.action_matrix[self.state] if x > -1]
