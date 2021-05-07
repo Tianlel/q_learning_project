@@ -83,7 +83,7 @@ class QLearning(object):
         self.reward_received = True
         self.converged = False
 
-    def perform_action(self):   
+    def perform_action(self):  
         # wait till an reward is received
         if not self.reward_received:
             rospy.sleep(1)
@@ -91,13 +91,23 @@ class QLearning(object):
 
         # randomly select a valid action 
         valid_actions = [x for x in self.action_matrix[self.state] if x > -1]
+
+        # if no valid actions, return and wait the world to be reset
+        if not valid_actions:
+            # reset everything to the original state
+            self.state = 0
+            self.next_state = None
+            self.action = None
+            self.reward_received = True
+            return
+
         action = choice(valid_actions)
             
         # update action at time t
         self.action = int(action)
 
         # update state at time t+1
-        self.next_state = np.where(self.action_matrix[self.state] == action)
+        self.next_state = np.where(self.action_matrix[self.state] == action)[0][0]
 
         # perform action
         action = self.actions[self.action]
