@@ -19,6 +19,12 @@ HSV_COLOR_RANGES = {
         "red" : [np.array([0, 100, 100]), np.array([15, 255, 255])]
         }
 
+possible_boxes = {
+                    '1' : ['1', 'i', 'l'],
+                    '2' : ['2'],
+                    '3' : ['3', '8']
+                }
+
 class Action(object):
     def __init__(self):
         self.initialized = False
@@ -46,14 +52,14 @@ class Action(object):
         # openmanipulator gripper
         self.move_group_gripper = moveit_commander.MoveGroupCommander("gripper")
 
-        #self.pipeline = keras_ocr.pipeline.Pipeline()
+        self.pipeline = keras_ocr.pipeline.Pipeline()
 
         # Set image, hsv, scan data to be NONE for now
         self.image = None
         self.hsv = None
         self.laserscan = None
         self.laserscan_front = None
-        self.state = 'GREEN'
+        self.state = 'BLOCK1'
 
         self.action_in_progress = False
 
@@ -70,12 +76,16 @@ class Action(object):
     def scan_callback(self, data):
         if not self.initialized:
             return
-        #print("scan callback")
+        print("scan callback")
         self.laserscan = data.ranges
         front = []
         for i in range(355, 365):
             front.append(self.laserscan[i % 360])
         self.laserscan_front = front
+        # Doing this in SCAN callback becuase it is slower and gives more time for image to load.
+        if self.state == 'BLOCK1':
+            self.move_to_block('1')
+
 
     def image_callback(self, data):
         if not self.initialized:
@@ -85,9 +95,7 @@ class Action(object):
         self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
         self.hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
         # TESTING FOR NOW
-        print(self.state)
-        if self.state == 'BLOCK1':
-            self.move_to_block('1')
+        #print(self.state)
         if self.state == 'GREEN':
             self.move_to_dumbell("green")
         if self.state == 'PICKUP':
@@ -181,9 +189,21 @@ class Action(object):
         self.pub_cmd_vel(0,0)
 
     
-    def determine_block_center(self, box):
-        return box[1][0] - box[0][0]
-    """
+    def determine_block_center(self, block_num, prediction_groups):
+        # Possible recognitions for 
+        sum_boxes = 0
+        count_boxes = 0
+        possibilities = []
+        for i in prediction_groups:
+            if i in possible_boxes[block_num]:
+                possibilities.append(i)
+                sum_boxes += prediction_groups[i][1][0] + prediction_groups[i][0][0]
+                count_boxes += 2
+        print(possibilities)
+        print(sum_boxes, count_boxes)
+        return sum_boxes / count_boxes
+    
+    
     def move_to_block(self, block):
         if not self.initialized or self.hsv is None or self.image is None or self.laserscan is None:
             return
@@ -191,26 +211,33 @@ class Action(object):
         
         # front distance
         dist = min(self.laserscan_front)
-
-        images = [self.image]
-        prediction_groups = self.pipeline.recognize(images)
-        print(prediction_groups[0])
-        predictions = dict(prediction_groups[0])
-        cv2.imshow("window", self.image)
-        cv2.waitKey(3)
-
         
-        if block not in predictions:
+        image = self.image
+        images = [image]
+        prediction_groups = self.pipeline.recognize(images)
+        predictions = dict(prediction_groups[0])
+        print(predictions)
+        #cv2.imshow("window", self.image)
+        #cv2.waitKey(3)
+
+        block_visible = False
+
+        for pic in predictions:
+            if pic in possible_boxes[block]:
+                block_visible = True
+
+        if not block_visible:
             ang = 0.3
             lin = 0.0
         else:
-            cx = self.determine_block_center(predictions[block].tolist())
+            cx = self.determine_block_center(block, predictions)
             h, w, d = self.image.shape
             err = w/2 - cx
+            print(err, cx, w)
             k_p = 1.0 / 1000.0
             lin_k = 0.2
             if dist >= 0.5:
-                lin = 0.2
+                lin = 0.3
             else:
                 linerr = dist - 0.2
                 lin = linerr * lin_k
@@ -219,7 +246,8 @@ class Action(object):
         while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 1.0:
             self.pub_cmd_vel(lin, ang)
         self.pub_cmd_vel(0,0)
-        """
+        rospy.sleep(0.5)
+        
     
     # execute action
     def execute_action(self, data):
