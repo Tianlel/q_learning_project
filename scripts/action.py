@@ -105,8 +105,9 @@ class Action(object):
     def move_to_dumbell(self, color):
         if not self.initialized or self.hsv is None or self.image is None or self.laserscan is None:
             return
+
         # Mask
-        mask = cv2.inRange(self.hsv, HSV_COLOR_RANGES[color][0], HSV_COLOR_RANGES[color][1])      
+        mask = cv2.inRange(self.hsv, HSV_COLOR_RANGES[color][0], HSV_COLOR_RANGES[color][1])            
         
         # Erase all pixels that are not color
         h, w, d = self.image.shape
@@ -116,6 +117,7 @@ class Action(object):
 
         # determine center of color pixels
         M = cv2.moments(mask)
+        # if the target color is in sight
         if M['m00'] > 0:
             # determine the center of the color pixels in the image
             cx = int(M['m10']/M['m00'])
@@ -136,7 +138,7 @@ class Action(object):
             self.pub_cmd_vel(lin, ang)
         else:
             print("can't see color")
-            "Spin until we see image"
+            # spin until we see image
             self.pub_cmd_vel(0, 0.2)
         cv2.imshow("window", mask)
         cv2.waitKey(3)
@@ -173,6 +175,7 @@ class Action(object):
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
         self.move_group_gripper.stop()
         rospy.sleep(1)
+        init_time = rospy.Time.now().to_sec()
         while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 1.0:
             self.pub_cmd_vel(-0.3, 0)
         self.pub_cmd_vel(0,0)
@@ -220,7 +223,18 @@ class Action(object):
     
     # execute action
     def execute_action(self, data):
-        # TODO
+        color = data.robot_db
+        blk = data.block_id
+
+        # move to target dumbbell
+        self.move_to_dumbell(color)
+
+        # pick up dumbbell
+
+        # move to target block
+
+        # drop dumbell
+
         return
 
     def run(self):
