@@ -8,6 +8,7 @@ import math
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
+from q_learning_project.msg import RobotMoveDBToBlock
 
 # HSV color ranges for RGB camera
 # [lower range, upper range]
@@ -18,7 +19,7 @@ HSV_COLOR_RANGES = {
         "red" : [np.array([0, 100, 100]), np.array([15, 255, 255])]
         }
 
-class Action:
+class Action(object):
     def __init__(self):
         self.initialized = False
         # init rospy node
@@ -33,6 +34,9 @@ class Action:
        
         # subscribe to robot's laser scan
         rospy.Subscriber("/scan", LaserScan, self.scan_callback)
+
+        # subscribe to robot_action
+        rospy.Subscriber("/q_learning/robot_action", RobotMoveDBToBlock, self.execute_action)
         
         # the interface to the group of joints making up the turtlebot3
         # openmanipulator arm
@@ -51,13 +55,14 @@ class Action:
         self.laserscan_front = None
         self.state = 'GREEN'
 
+        self.action_in_progress = False
+
         self.cmd_vel_pub = rospy.Publisher('cmd_vel',
                         Twist, queue_size=1)
 
         self.twist = Twist()
 
-        self.reset_gripper()
-        
+        self.reset_gripper()  
 
         rospy.sleep(1)
         self.initialized = True
@@ -101,8 +106,7 @@ class Action:
         if not self.initialized or self.hsv is None or self.image is None or self.laserscan is None:
             return
         # Mask
-        mask = cv2.inRange(self.hsv, HSV_COLOR_RANGES[color][0], HSV_COLOR_RANGES[color][1])
-        
+        mask = cv2.inRange(self.hsv, HSV_COLOR_RANGES[color][0], HSV_COLOR_RANGES[color][1])      
         
         # Erase all pixels that are not color
         h, w, d = self.image.shape
@@ -213,6 +217,11 @@ class Action:
             self.pub_cmd_vel(lin, ang)
         self.pub_cmd_vel(0,0)
         """
+    
+    # execute action
+    def execute_action(self, data):
+        # TODO
+        return
 
     def run(self):
         rospy.spin()
