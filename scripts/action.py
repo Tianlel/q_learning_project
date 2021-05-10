@@ -8,7 +8,7 @@ import math
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
-from q_learning_project.msg import RobotMoveDBToBlock #,RobotState
+from q_learning_project.msg import RobotMoveDBToBlock
 
 # HSV color ranges for RGB camera
 # [lower range, upper range]
@@ -59,10 +59,7 @@ class Action(object):
 
         # subscribe to robot_action
         rospy.Subscriber("/q_learning/robot_action", RobotMoveDBToBlock, self.action_callback)
-
-        # set up robot_state publisher
-        #self.state_pub = rospy.Publisher("/q_learning/robot_state", RobotState, queue_size=10)
-        #self.action_state = RobotState(waiting_for_action=True)
+        print("action subscriber ready")
         
         # the interface to the group of joints making up the turtlebot3
         # openmanipulator arm
@@ -83,8 +80,7 @@ class Action(object):
         
         self.block_visible = False
         
-        # Testing for now
-        self.actions = [RobotMoveDBToBlock('blue', 3)]
+        self.actions = []
 
         self.action_in_progress = None
 
@@ -114,7 +110,9 @@ class Action(object):
             return
         #if data is not None:
         self.actions.append(data)
-
+        print("Received actions: ")
+        print(self.actions)
+        
     """Callback for images"""
     def image_callback(self, data):
         if not self.initialized:
@@ -226,7 +224,7 @@ class Action(object):
         self.pub_cmd_vel(0,0)
         self.reset_gripper() 
         # Change state
-        self.state = 'STOP'
+        self.state = STOP
         self.block_visible = False
         self.action_in_progress = None
 
@@ -309,10 +307,6 @@ class Action(object):
         # Pop the next action to be done
         self.action_in_progress = self.actions.pop(0)
 
-        # Tell action publisher to wait until action has been completed
-        #self.action_state.waiting_for_action = False
-        #self.state_pub.publish(self.action_state)
-
         # Get color of dumbell to go to and set state accordingly
         color = self.action_in_progress.robot_db
         if color == 'red':
@@ -328,6 +322,7 @@ class Action(object):
 
         while not rospy.is_shutdown():
             if self.initialized:
+                print(self.state)
                 if self.state == BLOCK1 or self.state == BLOCK2 or self.state == BLOCK3:
                     self.move_to_block(self.state)
                 elif self.state == GREEN or self.state == BLUE or self.state == RED:

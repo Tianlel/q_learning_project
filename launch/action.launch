@@ -120,10 +120,10 @@
   <!-- run world restting node -->
   <node name="reset_world_q_learning" pkg="q_learning_project" type="reset_world.py" respawn="true" />
 
-  <!-- run dispatch_actions node -->
-  <node name="dispatch_actions" pkg="q_learning_project" type="dispatch_actions.py"/>
-
   <!-- run action node -->
   <node name="action" pkg="q_learning_project" type="action.py"/>
+
+  <!-- run dispatch_actions node -->
+  <node name="dispatch_actions" pkg="q_learning_project" type="dispatch_actions.py"/>
 
 </launch>
