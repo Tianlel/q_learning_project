@@ -157,6 +157,7 @@ class QLearning(object):
 
         # if the Q matrix has remained the same for 200 steps, then we consider it to be converged
         if self.convergence_cnt == 200:
+            print("self.convergence_cnt reached 200 at "+str(time.time()-t0))
             self.converged = True
 
     def save_q_matrix(self):
