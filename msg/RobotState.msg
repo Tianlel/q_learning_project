@@ -1,1 +1,1 @@
-bool in_action
+bool waiting_for_action
