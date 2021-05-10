@@ -8,7 +8,7 @@ import math
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
-from q_learning_project.msg import RobotMoveDBToBlock
+from q_learning_project.msg import RobotMoveDBToBlock, NodeStatus
 
 # HSV color ranges for RGB camera
 # [lower range, upper range]
@@ -60,6 +60,9 @@ class Action(object):
         # subscribe to robot_action
         rospy.Subscriber("/q_learning/robot_action", RobotMoveDBToBlock, self.action_callback)
         print("action subscriber ready")
+
+        # initialize node status publisher 
+        self.node_status_pub = rospy.Publisher("node_status", NodeStatus, queue_size=10)
         
         # the interface to the group of joints making up the turtlebot3
         # openmanipulator arm
@@ -92,6 +95,9 @@ class Action(object):
         self.reset_gripper()  
 
         self.initialized = True
+
+        # tell dispatch_actions node to start publish actions
+        self.node_status_pub.publish(NodeStatus(node_initialized=True))
         rospy.sleep(1)
 
     """Callback for lidar scan"""

@@ -9,7 +9,7 @@ import rospy
 import csv
 import os
 import numpy as np
-from q_learning_project.msg import RobotMoveDBToBlock
+from q_learning_project.msg import RobotMoveDBToBlock, NodeStatus
 
 # Path of directory on where action_state file is located
 path_prefix_action_state = os.path.dirname(__file__) + "/action_states/"
@@ -20,7 +20,7 @@ class DispatchAction(object):
 
     def __init__(self):
         rospy.init_node("dispatch_actions")
-        rospy.sleep(20)
+        rospy.sleep(1)
 
         # Fetch pre-built action matrix. This is a 2d numpy array where row indexes
         # correspond to the starting state and column indexes are the next states.
@@ -47,8 +47,13 @@ class DispatchAction(object):
         self.action_pub = rospy.Publisher("/q_learning/robot_action", RobotMoveDBToBlock, queue_size=10)
         rospy.sleep(1)
 
+        # Subscribe to node_status
+        self.action_node_status = rospy.Subscriber("node_status", NodeStatus, self.node_status_callback)
+
         # Initialize action
         self.action = RobotMoveDBToBlock()
+
+        self.action_node_initialized = False
 
         self.reach_end = False
 
@@ -57,6 +62,11 @@ class DispatchAction(object):
 
         # Initialize state to 0
         self.state = 0
+
+    def node_status_callback(self, data):
+        # if action node is successfully initialized
+        if data:
+            self.action_node_initialized = True
 
     # Read the saved Q matrix
     def read_qmatrix(self):
@@ -97,8 +107,9 @@ class DispatchAction(object):
         # If file read successfully
         if self.qmatrix:
             while not self.reach_end:
-                self.publish_action()
-                rospy.sleep(2)
+                if self.action_node_initialized:
+                    self.publish_action()
+                    rospy.sleep(1)
 
 if __name__ == "__main__":
     node = DispatchAction()
