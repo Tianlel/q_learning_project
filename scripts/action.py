@@ -8,7 +8,7 @@ import math
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
-from q_learning_project.msg import RobotMoveDBToBlock, RobotState
+from q_learning_project.msg import RobotMoveDBToBlock #,RobotState
 
 # HSV color ranges for RGB camera
 # [lower range, upper range]
@@ -23,7 +23,7 @@ HSV_COLOR_RANGES = {
 possible_boxes = {
                     '1' : ['1', 'i', 'l'],
                     '2' : ['2'],
-                    '3' : ['3', '8', 'e']
+                    '3' : ['3', '8', 'e', '5', 's']
                 }
 
 # List of possible states
@@ -61,8 +61,8 @@ class Action(object):
         rospy.Subscriber("/q_learning/robot_action", RobotMoveDBToBlock, self.action_callback)
 
         # set up robot_state publisher
-        self.state_pub = rospy.Publisher("/q_learning/robot_state", RobotState, queue_size=10)
-        self.action_state = RobotState(waiting_for_action=True)
+        #self.state_pub = rospy.Publisher("/q_learning/robot_state", RobotState, queue_size=10)
+        #self.action_state = RobotState(waiting_for_action=True)
         
         # the interface to the group of joints making up the turtlebot3
         # openmanipulator arm
@@ -79,12 +79,12 @@ class Action(object):
         self.hsv = None
         self.laserscan = None
         self.laserscan_front = None
-        self.state = BLOCK1
+        self.state = STOP
         
         self.block_visible = False
         
         # Testing for now
-        self.actions = [RobotMoveDBToBlock('green', 2)]
+        self.actions = [RobotMoveDBToBlock('blue', 3)]
 
         self.action_in_progress = None
 
@@ -125,24 +125,7 @@ class Action(object):
         self.hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
         # Main driver
         #print(self.state)
-<<<<<<< HEAD
-                        
-=======
-        if self.state == GREEN or self.state == BLUE or self.state == RED:
-            # Go to dumbell color
-            self.move_to_dumbell(self.state)
-        elif self.state == PICKUP:
-            self.pick_up_gripper()
-        elif self.state == DROP:
-            self.drop_gripper()
-        elif self.state == STOP:
-            # Ready to receive action
-            self.action_state.waiting_for_action = True
-            self.state_pub.publish(self.action_state)
-            self.get_action()
 
-                
->>>>>>> refs/remotes/origin/master
     """Publish movement"""
     def pub_cmd_vel(self, lin, ang):
         self.twist.linear.x = lin
@@ -217,6 +200,7 @@ class Action(object):
         self.pub_cmd_vel(0,0)
         # Change state
         print("changing state")
+        
         block = self.action_in_progress.block_id
         if block == 1:
             self.state = BLOCK1
@@ -224,23 +208,23 @@ class Action(object):
             self.state = BLOCK2
         else:
             self.state = BLOCK3
-
+        
 
     """Drop dumbell from gripper"""
     def drop_gripper(self):
-        arm_joint_goal = [0.0, 0.7, -0.260, -0.450]
+        arm_joint_goal = [0.0, 0.4, 0.55, -1.0]
         gripper_joint_goal = [0.01, 0.01]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_arm.stop()
         self.move_group_gripper.go(gripper_joint_goal, wait=True)
         self.move_group_gripper.stop()
-        rospy.sleep(1)
+        
         init_time = rospy.Time.now().to_sec()
         # move back away from block
         while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 2.0:
             self.pub_cmd_vel(-0.5, 0)
         self.pub_cmd_vel(0,0)
-        self.reset_gripper()
+        self.reset_gripper() 
         # Change state
         self.state = 'STOP'
         self.block_visible = False
@@ -271,6 +255,11 @@ class Action(object):
         # front distance
         dist = min(self.laserscan_front)
         
+        if dist <= 1.0 and self.block_visible:
+            self.state = DROP
+            self.pub_cmd_vel(0.0, 0.0)
+            return
+
         image = self.image
         images = [image]
         prediction_groups = self.pipeline.recognize(images)
@@ -285,27 +274,24 @@ class Action(object):
                 self.block_visible = True
             if pic in possible_boxes[block]:
                 block_in_prediction = True
-        if dist <= 0.6 and self.block_visible:
-            self.state = 'DROP'
-            self.pub_cmd_vel(0.0, 0.0)
-            return
+        
         if self.block_visible and not block_in_prediction:
             lin = 0.2
-            ang = 0.5
+            ang = 0.0
         elif not self.block_visible:
-            ang = 0.5
+            ang = 0.4
             lin = 0.0
         else:
             cx = self.determine_block_center(block, predictions)
             h, w, d = self.image.shape
             err = w/2 - cx
             print(err, cx, w)
-            k_p = 1.0 / 200.0
+            k_p = 1.0 / 500.0
             lin_k = 0.3
             if dist >= 1.0:
-                lin = 0.5
+                lin = 0.3
             else:
-                linerr = dist - 0.6
+                linerr = dist - 1.0
                 lin = linerr * lin_k
             ang = k_p * err
         init_time = rospy.Time.now().to_sec()
@@ -324,8 +310,8 @@ class Action(object):
         self.action_in_progress = self.actions.pop(0)
 
         # Tell action publisher to wait until action has been completed
-        self.action_state.waiting_for_action = False
-        self.state_pub.publish(self.action_state)
+        #self.action_state.waiting_for_action = False
+        #self.state_pub.publish(self.action_state)
 
         # Get color of dumbell to go to and set state accordingly
         color = self.action_in_progress.robot_db
