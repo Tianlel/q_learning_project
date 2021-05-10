@@ -285,7 +285,7 @@ class Action(object):
                 self.block_visible = True
             if pic in possible_boxes[block]:
                 block_in_prediction = True
-        if dist <= 1.0 and self.block_visible:
+        if dist <= 0.6 and self.block_visible:
             self.state = 'DROP'
             self.pub_cmd_vel(0.0, 0.0)
             return
@@ -302,10 +302,10 @@ class Action(object):
             print(err, cx, w)
             k_p = 1.0 / 200.0
             lin_k = 0.3
-            if dist >= 3.0:
+            if dist >= 1.0:
                 lin = 0.5
             else:
-                linerr = dist - 1.0
+                linerr = dist - 0.6
                 lin = linerr * lin_k
             ang = k_p * err
         init_time = rospy.Time.now().to_sec()
