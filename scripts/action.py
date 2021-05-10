@@ -75,7 +75,7 @@ class Action(object):
         self.hsv = None
         self.laserscan = None
         self.laserscan_front = None
-        self.state = STOP
+        self.state = BLOCK1
         
         self.block_visible = False
         
@@ -100,12 +100,9 @@ class Action(object):
             return
         self.laserscan = data.ranges
         front = []
-        for i in range(355, 365):
+        for i in range(350, 375):
             front.append(self.laserscan[i % 360])
         self.laserscan_front = front
-        # Doing this in SCAN callback becuase it is slower and gives more time for image to load.
-        if self.state == BLOCK1 or self.state == BLOCK2 or self.state == BLOCK3:
-            self.move_to_block(self.state)
 
     """Callback for actions"""
     def action_callback(self, data):
@@ -124,17 +121,7 @@ class Action(object):
         self.hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
         # Main driver
         #print(self.state)
-        if self.state == GREEN or self.state == BLUE or self.state == RED:
-            # Go to dumbell color
-            self.move_to_dumbell(self.state)
-        elif self.state == PICKUP:
-            self.pick_up_gripper()
-        elif self.state == DROP:
-            self.drop_gripper()
-        elif self.state == STOP:
-            self.get_action()
-
-                
+                        
     """Publish movement"""
     def pub_cmd_vel(self, lin, ang):
         self.twist.linear.x = lin
@@ -259,7 +246,7 @@ class Action(object):
         if not self.initialized or self.hsv is None or self.image is None or self.laserscan is None:
             return
         self.pub_cmd_vel(0, 0)
-        
+        print(self.state) 
         # front distance
         dist = min(self.laserscan_front)
         
@@ -277,7 +264,7 @@ class Action(object):
                 self.block_visible = True
             if pic in possible_boxes[block]:
                 block_in_prediction = True
-        if dist <= 3.0 and self.block_visible:
+        if dist <= 1.0 and self.block_visible:
             self.state = 'DROP'
             self.pub_cmd_vel(0.0, 0.0)
             return
@@ -325,7 +312,23 @@ class Action(object):
         return
 
     def run(self):
-        rospy.spin()
+        r = rospy.Rate(5)
+
+        while not rospy.is_shutdown():
+            if self.initialized:
+                if self.state == BLOCK1 or self.state == BLOCK2 or self.state == BLOCK3:
+                    self.move_to_block(self.state)
+                elif self.state == GREEN or self.state == BLUE or self.state == RED:
+                # Go to dumbell color
+                    self.move_to_dumbell(self.state)
+                elif self.state == PICKUP:
+                    self.pick_up_gripper()
+                elif self.state == DROP:
+                    self.drop_gripper()
+                elif self.state == STOP:
+                    self.get_action()
+            r.sleep()
+
 
 if __name__ == '__main__':
     # Declare a node and run it.
