@@ -1,0 +1,1 @@
+bool node_initialized
