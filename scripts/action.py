@@ -253,7 +253,7 @@ class Action(object):
         # front distance
         dist = min(self.laserscan_front)
         
-        if dist <= 1.0 and self.block_visible:
+        if dist <= 0.7 and self.block_visible:
             self.state = DROP
             self.pub_cmd_vel(0.0, 0.0)
             return
