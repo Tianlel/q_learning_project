@@ -8,7 +8,7 @@ import math
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist
 from sensor_msgs.msg import LaserScan
-from q_learning_project.msg import RobotMoveDBToBlock
+from q_learning_project.msg import RobotMoveDBToBlock, RobotState
 
 # HSV color ranges for RGB camera
 # [lower range, upper range]
@@ -59,6 +59,10 @@ class Action(object):
 
         # subscribe to robot_action
         rospy.Subscriber("/q_learning/robot_action", RobotMoveDBToBlock, self.action_callback)
+
+        # set up robot_state publisher
+        self.state_pub = rospy.Publisher("/q_learning/robot_state", RobotState, queue_size=10)
+        self.action_state = RobotState(waiting_for_action=True)
         
         # the interface to the group of joints making up the turtlebot3
         # openmanipulator arm
@@ -121,7 +125,24 @@ class Action(object):
         self.hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
         # Main driver
         #print(self.state)
+<<<<<<< HEAD
                         
+=======
+        if self.state == GREEN or self.state == BLUE or self.state == RED:
+            # Go to dumbell color
+            self.move_to_dumbell(self.state)
+        elif self.state == PICKUP:
+            self.pick_up_gripper()
+        elif self.state == DROP:
+            self.drop_gripper()
+        elif self.state == STOP:
+            # Ready to receive action
+            self.action_state.waiting_for_action = True
+            self.state_pub.publish(self.action_state)
+            self.get_action()
+
+                
+>>>>>>> refs/remotes/origin/master
     """Publish movement"""
     def pub_cmd_vel(self, lin, ang):
         self.twist.linear.x = lin
@@ -301,6 +322,11 @@ class Action(object):
         
         # Pop the next action to be done
         self.action_in_progress = self.actions.pop(0)
+
+        # Tell action publisher to wait until action has been completed
+        self.action_state.waiting_for_action = False
+        self.state_pub.publish(self.action_state)
+
         # Get color of dumbell to go to and set state accordingly
         color = self.action_in_progress.robot_db
         if color == 'red':
