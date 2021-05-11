@@ -40,6 +40,7 @@
 ## Writeup
 ### Gif 
 ![drive_square gif](https://github.com/Tianlel/q_learning_project/blob/master/recordings/q_learning.gif)
+
 (5x speed)
 ### Objectives description
 TODO
