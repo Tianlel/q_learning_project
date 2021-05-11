@@ -79,7 +79,7 @@
   </node>
   
   <!-- run action node -->
-  <node name="action" pkg="q_learning_project" type="action.py"/>
+  <node name="action" pkg="q_learning_project" type="action.py" output="screen"/>
 
   <!-- run dispatch_actions node -->
   <node name="dispatch_actions" pkg="q_learning_project" type="dispatch_actions.py"/>
