@@ -57,20 +57,21 @@ TODO
 TODO
 
 ### Robot Perception Description
+For both identifying colored dumbbells and numbered blocks, we use the image received from the callback function `image_callback` and store it in `self.image` in the Action class. Here, we also convert the image to HSV format and store it in `self.hsv`.
 #### Identifying colored dumbbells
-TODO
+Identifying colored dumbbells is done by the first half of the function `move_to_dumbell`. On input of a color red, green, or blue, we take the image from `self.image` and create a mask with an upper and lower range of HSV values. With this, the color we want (red, green, or blue) will show up in the picture while the other pixels will be black. With this, using the moments function in the `cv2` library, we can determine where the target color in sight is and identify the dumbbell. If there is no dumbbell in the image, then we turn until we find one.
 #### Identifying numbered blocks
-TODO
+Identifying numbered blocks is done in the functions `check_for_dumbbells`, `determine_block_center`, and `move_to_block`. In `move_to_block`, we use the `keras_ocr` library to give a list of prediction box tuples of text in an image we input from `self.image`. Then, given a target block we want to go to, we choose specific prediction box tuples that will be useful for us to identify the block. First, we iterate through all the predictions and see if they match a target char in `possible_boxes`, as image recognition can be off sometimes. However, we require the first block identification to match the exact number to help with exactness and keep track of this with `self.block_visible`. This way, we do not place the dumbbell down in front of the other dumbbells and keep turning without moving forward to find the right block. We then pass in these possible boxes into `check_for_dumbells`, as we want to make sure our image prediction is not affected by dumbbell presence making text look different. This function works by checking to see if the box has any color in it with masks of the 3 dumbbell colors. With all these boxes filtered, we then use `determine_block_center` to calculate the location of the block in the image, which we then move towards.
 
 ### Robot Manipulation and Movement
-#### Moving to pick up dumbell
-TODO
-#### Picking up dumbell
-TODO
-#### Moving to numbered block with the dumbell
-TODO
+#### Moving to pick up dumbbell
+Above, we explained how we identified the dumbbell. Once we have the center (`cx`) located from the moments object, we use proportional control to move the dumbbell closer and closer to the dumbbell, slowing down as we get closer with information from the `self.laserscan_front` data. Once we reach a distance of `0.22` from the dumbbell, we move into the pickup state.
+#### Picking up dumbbell
+Picking up the dumbbell is done in the `reset_gripper` and `pick_up_gripper` functions. In `reset_gripper`, we set the arm and gripper to a state such that the robot can move the gripper on the handle of the dumbbell to pick it up. In `pick_up_gripper`, we move the arm and gripper to pick up the dumbbell, then move back away from the dumbbells, and change the state to go to the block. We found appropriate values for the arm and gripper for both these functions by playing with the GUI and testing through observation to see what worked and what didn't work.
+#### Moving to numbered block with the dumbbell
+Once we have identified the block through `keras_ocr`, set the `self.block_visible` variable to `True`, and selected the appropriate boxes to use, we calculate the center of all the boxes that correspond to the appropriate block number. In combination with data from `self.laserscan_front` data, we use proportional control to move the robot slowly but surely toward the block. Note, that every iteration of `move_to_block`, we move for a small amount of time, `0.75` seconds to make sure our robot does not veer off course. Sometimes, our robot may not identify the correct numbers, especially if it has turned too much and/or is too close to the block to identify correctly. To help with this, we keep track of what direction the robot has last turned. That way, if it happens that we can't identify the block, we go forward and turn the other direction in case it was the case that we turned too much. If it is the case that we were too close to the block, our next iteration will turn back the other way, zigzagging our way towards the block. Once we have reached a certain distance from the front, we move to the drop dumbbell state. 
 #### Putting the dumbbell back down
-TODO
+This is done in the `drop_gripper` function. We set the arm and gripper to a state such that the dumbbell drops vertically and gracefully with as little shaking as possible. We then move back slowly for some time, and reset our state to STOP to continue listening for actions from the `dispatch_action` node. We found appropriate values for the arm and gripper for both these functions by playing with the GUI and testing through observation to see what worked and what didn't work.
 
 ### Challenges
 TODO
