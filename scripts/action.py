@@ -22,7 +22,7 @@ HSV_COLOR_RANGES = {
 # What keras_ocr may see for each number
 possible_boxes = {
                     '1' : ['1', 'i', 'l'],
-                    '2' : ['2'],
+                    '2' : ['2', 'z'],
                     '3' : ['3', '8', 'e', '5', 's']
                 }
 
@@ -80,6 +80,7 @@ class Action(object):
         self.laserscan = None
         self.laserscan_front = None
         self.state = STOP
+        self.last_turn = None
         
         self.block_visible = False
         
@@ -123,12 +124,9 @@ class Action(object):
     def image_callback(self, data):
         if not self.initialized:
             return
-        #print("image callback")
         # converts the incoming ROS message to cv2 format and HSV (hue, saturation, value)
         self.image = self.bridge.imgmsg_to_cv2(data, desired_encoding='bgr8')
         self.hsv = cv2.cvtColor(self.image, cv2.COLOR_BGR2HSV)
-        # Main driver
-        #print(self.state)
 
     """Publish movement"""
     def pub_cmd_vel(self, lin, ang):
@@ -225,29 +223,45 @@ class Action(object):
         
         init_time = rospy.Time.now().to_sec()
         # move back away from block
-        while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 2.0:
-            self.pub_cmd_vel(-0.5, 0)
+        while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 3.0:
+            self.pub_cmd_vel(-0.3, 0)
         self.pub_cmd_vel(0,0)
         self.reset_gripper() 
         # Change state
         self.state = STOP
         self.block_visible = False
         self.action_in_progress = None
-
+        self.last_turn = None
     
+
+    """Determine if there are dumbells in box"""
+    def check_for_dumbells(self, box, hsv):
+        # Mask
+        redmask = cv2.inRange(hsv, HSV_COLOR_RANGES['red'][0], HSV_COLOR_RANGES['red'][1])            
+        bluemask = cv2.inRange(hsv, HSV_COLOR_RANGES['blue'][0], HSV_COLOR_RANGES['blue'][1]) 
+        greenmask = cv2.inRange(hsv, HSV_COLOR_RANGES['red'][0], HSV_COLOR_RANGES['red'][1])
+        """
+        # Dimensions
+        for w in range(box[0][0], box[1][0]):
+            for h in range(box[0][1], box[2][1]):
+                if not (self.is_black_pixel(redmask[w][h]) and self.is_black_pixel(bluemask[w][h]) and self.is_black_pixel(greenmask[w][h])):
+                    return True
+        """
+        if cv2.countNonZero(redmask) == 0 and cv2.countNonZero(bluemask) == 0 and cv2.countNonZero(greenmask) == 0:
+            return False
+        else:
+            return True
+         
+
+
     """Determine center of block based on predictions from keras_ocr"""
-    def determine_block_center(self, block_num, prediction_groups):
+    def determine_block_center(self, boxes_to_use):
         # Possible recognitions for 
         sum_boxes = 0
         count_boxes = 0
-        possibilities = []
-        for i in prediction_groups:
-            if i in possible_boxes[block_num]:
-                possibilities.append(i)
-                sum_boxes += prediction_groups[i][1][0] + prediction_groups[i][0][0]
-                count_boxes += 2
-        #print(possibilities)
-        #print(sum_boxes, count_boxes)
+        for box in boxes_to_use:
+            sum_boxes += box[1][0] + box[0][0]
+            count_boxes += 2
         return sum_boxes / count_boxes
     
     """Move to specified blocks states: BLOCK1 BLOCK2 BLOCK3"""
@@ -255,51 +269,64 @@ class Action(object):
         if not self.initialized or self.hsv is None or self.image is None or self.laserscan is None:
             return
         self.pub_cmd_vel(0, 0)
-        print(self.state) 
         # front distance
         dist = min(self.laserscan_front)
         
-        if dist <= 0.7 and self.block_visible:
+        if dist <= 0.4 and self.block_visible:
             self.state = DROP
             self.pub_cmd_vel(0.0, 0.0)
             return
 
         image = self.image
+        hsv = self.hsv
         images = [image]
         prediction_groups = self.pipeline.recognize(images)
-        predictions = dict(prediction_groups[0])
+        predictions = prediction_groups[0]
         print(predictions)
         print(dist)
+        boxes_to_use = []
         #cv2.imshow("window", self.image)
         #cv2.waitKey(3)
         block_in_prediction = False
-        for pic in predictions:
-            if pic == block:
+        for p in predictions:
+            box = p[1].astype(int)
+            dumbell_near_box = self.check_for_dumbells(box, hsv)
+            if p[0] == block and not dumbell_near_box:
                 self.block_visible = True
-            if pic in possible_boxes[block]:
+            if p[0] in possible_boxes[block] and not dumbell_near_box:
                 block_in_prediction = True
-        
+                boxes_to_use.append(box)
+        print(boxes_to_use)
         if self.block_visible and not block_in_prediction:
-            lin = 0.2
-            ang = 0.0
-        elif not self.block_visible:
-            ang = 0.4
+            lin = 0.1
+            if self.last_turn == 'right':    
+                ang = 0.3
+            elif self.last_turn == 'left':
+                ang = -0.3
+        elif not self.block_visible or not block_in_prediction:
+            ang = 0.5
             lin = 0.0
         else:
-            cx = self.determine_block_center(block, predictions)
+            cx = self.determine_block_center(boxes_to_use)
             h, w, d = self.image.shape
             err = w/2 - cx
-            print(err, cx, w)
-            k_p = 1.0 / 500.0
-            lin_k = 0.3
             if dist >= 1.0:
-                lin = 0.3
+                k_p = 1.0 / 400.0
             else:
-                linerr = dist - 1.0
+                k_p = 1.0 / 500.0
+            lin_k = 0.5
+            if dist >= 1.0:
+                lin = 0.4
+            else:
+                linerr = dist - 0.45
                 lin = linerr * lin_k
             ang = k_p * err
+        if ang > 0:
+            self.last_turn = 'left'
+        else:
+            self.last_turn = 'right'
         init_time = rospy.Time.now().to_sec()
-        while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 1.0:
+        while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 0.75:
             self.pub_cmd_vel(lin, ang)
         self.pub_cmd_vel(0,0)
         rospy.sleep(0.5)
