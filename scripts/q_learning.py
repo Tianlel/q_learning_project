@@ -56,7 +56,7 @@ class QLearning(object):
         self.qmatrix.q_matrix = [QMatrixRow(q_matrix_row = [0 for action in range(9)]) for state in range(64)]
             
         # publisher for QMatrix
-        self.qmatrix_pub = rospy.Publisher("q_matrix", QMatrix, queue_size=10)
+        self.qmatrix_pub = rospy.Publisher("/q_learning/q_matrix", QMatrix, queue_size=10)
 
         # subscribe to reward
         rospy.Subscriber("/q_learning/reward", QLearningReward, self.update_q_matrix)
@@ -158,6 +158,7 @@ class QLearning(object):
         # if the Q matrix has remained the same for 200 steps, then we consider it to be converged
         if self.convergence_cnt == 200:
             print("self.convergence_cnt reached 200 at "+str(time.time()-t0))
+            print("Q Matrix has converged! Training done!")
             self.converged = True
 
     def save_q_matrix(self):
