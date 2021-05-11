@@ -160,7 +160,8 @@ class QLearning(object):
             print("self.convergence_cnt reached 200 at "+str(time.time()-t0))
             print("Q Matrix has converged! Training done!")
             self.converged = True
-
+    
+    """Save the q_matrix file to csv"""
     def save_q_matrix(self):
         with open('qmatrix.csv', 'w', newline='') as fp:
             writer = csv.writer(fp)
@@ -168,6 +169,7 @@ class QLearning(object):
                 writer.writerow(self.qmatrix.q_matrix[state].q_matrix_row)
         return
 
+    """Run Q-Learning algorithm until convergence"""
     def run(self):
         while self.converged is False:
             self.perform_action()

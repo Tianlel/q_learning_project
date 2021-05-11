@@ -100,7 +100,7 @@ class DispatchAction(object):
 
         # Update robot state
         self.state = np.where(self.action_matrix[self.state] == best_action)[0][0]
-
+    
     def run(self):
         self.read_qmatrix()
         

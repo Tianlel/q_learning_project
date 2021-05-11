@@ -59,7 +59,6 @@ class Action(object):
 
         # subscribe to robot_action
         rospy.Subscriber("/q_learning/robot_action", RobotMoveDBToBlock, self.action_callback)
-        print("action subscriber ready")
 
         # initialize node status publisher 
         self.node_status_pub = rospy.Publisher("node_status", NodeStatus, queue_size=10)
@@ -79,20 +78,29 @@ class Action(object):
         self.hsv = None
         self.laserscan = None
         self.laserscan_front = None
+
+        # Initial state to STOP
         self.state = STOP
+
+        # Keep track of direction robot last turned for driving to block
         self.last_turn = None
         
+        # Keep track of whether the correct block has been spotted at least once (for driving to block)
         self.block_visible = False
         
+        # Store actions in list as they are recieved in the callback
         self.actions = []
-
+        
+        # Current action
         self.action_in_progress = None
 
+        # Set up publisher for movement
         self.cmd_vel_pub = rospy.Publisher('cmd_vel',
                         Twist, queue_size=1)
 
         self.twist = Twist()
 
+        # Set gripper to initial starting point
         self.reset_gripper()  
 
         self.initialized = True
@@ -117,8 +125,6 @@ class Action(object):
             return
         #if data is not None:
         self.actions.append(data)
-        print("Received actions: ")
-        print(self.actions)
         
     """Callback for images"""
     def image_callback(self, data):
@@ -171,11 +177,8 @@ class Action(object):
             ang = k_p * err
             self.pub_cmd_vel(lin, ang)
         else:
-            print("can't see color")
             # spin until we see image
             self.pub_cmd_vel(0, 0.2)
-        #cv2.imshow("window", mask)
-        #cv2.waitKey(3)
 
     """Starting gripper setup to pickup"""
     def reset_gripper(self):
@@ -194,15 +197,12 @@ class Action(object):
         self.move_group_gripper.go(gripper_joint_goal, wait=True) 
         self.move_group_arm.stop()
         self.move_group_gripper.stop()
-        print("done picking up, moving away")
         # Move back away from dumbells
         init_time = rospy.Time.now().to_sec()
         while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 1.0:
             self.pub_cmd_vel(-0.3, 0)
         self.pub_cmd_vel(0,0)
-        # Change state
-        print("changing state")
-        
+        # Change state to block  
         block = self.action_in_progress.block_id
         if block == 1:
             self.state = BLOCK1
@@ -214,7 +214,7 @@ class Action(object):
 
     """Drop dumbell from gripper"""
     def drop_gripper(self):
-        arm_joint_goal = [0.0, 0.4, 0.55, -1.0]
+        arm_joint_goal = [0.0, 0.43, 0.48, -0.92]
         gripper_joint_goal = [0.01, 0.01]
         self.move_group_arm.go(arm_joint_goal, wait=True)
         self.move_group_arm.stop()
@@ -227,7 +227,7 @@ class Action(object):
             self.pub_cmd_vel(-0.3, 0)
         self.pub_cmd_vel(0,0)
         self.reset_gripper() 
-        # Change state
+        # Change state, reset variables used for driving to block
         self.state = STOP
         self.block_visible = False
         self.action_in_progress = None
@@ -236,17 +236,11 @@ class Action(object):
 
     """Determine if there are dumbells in box"""
     def check_for_dumbells(self, box, hsv):
-        # Mask
+        # Masks
         redmask = cv2.inRange(hsv, HSV_COLOR_RANGES['red'][0], HSV_COLOR_RANGES['red'][1])            
         bluemask = cv2.inRange(hsv, HSV_COLOR_RANGES['blue'][0], HSV_COLOR_RANGES['blue'][1]) 
         greenmask = cv2.inRange(hsv, HSV_COLOR_RANGES['red'][0], HSV_COLOR_RANGES['red'][1])
-        """
-        # Dimensions
-        for w in range(box[0][0], box[1][0]):
-            for h in range(box[0][1], box[2][1]):
-                if not (self.is_black_pixel(redmask[w][h]) and self.is_black_pixel(bluemask[w][h]) and self.is_black_pixel(greenmask[w][h])):
-                    return True
-        """
+        # Check for an all black box meaning there are no dumbells near the block
         if cv2.countNonZero(redmask) == 0 and cv2.countNonZero(bluemask) == 0 and cv2.countNonZero(greenmask) == 0:
             return False
         else:
@@ -256,7 +250,7 @@ class Action(object):
 
     """Determine center of block based on predictions from keras_ocr"""
     def determine_block_center(self, boxes_to_use):
-        # Possible recognitions for 
+        # Keep track of number of blocks and x-positions
         sum_boxes = 0
         count_boxes = 0
         for box in boxes_to_use:
@@ -268,45 +262,55 @@ class Action(object):
     def move_to_block(self, block):
         if not self.initialized or self.hsv is None or self.image is None or self.laserscan is None:
             return
+        # Make sure robot is stopped
         self.pub_cmd_vel(0, 0)
         # front distance
         dist = min(self.laserscan_front)
         
-        if dist <= 0.4 and self.block_visible:
+        # Time to drop the block
+        if dist <= 0.5 and self.block_visible:
             self.state = DROP
             self.pub_cmd_vel(0.0, 0.0)
             return
-
+        
+        # Set up for keras_ocr, check_for_dumbells, determine_block_center
         image = self.image
         hsv = self.hsv
         images = [image]
         prediction_groups = self.pipeline.recognize(images)
         predictions = prediction_groups[0]
-        print(predictions)
-        print(dist)
-        boxes_to_use = []
-        #cv2.imshow("window", self.image)
-        #cv2.waitKey(3)
-        block_in_prediction = False
+        boxes_to_use = [] # which blocks to use for determining where to drive
+        block_in_prediction = False # bool variable to tell if any blocks have been chosen 
+
+        # iterate through all predictions and box tuples
         for p in predictions:
             box = p[1].astype(int)
+            # check if there is a dumbell near the block
             dumbell_near_box = self.check_for_dumbells(box, hsv)
             if p[0] == block and not dumbell_near_box:
+                # We have seen the correct block and there is no dumbell near it 
+                # The first time we see the block we require an exact character match
                 self.block_visible = True
             if p[0] in possible_boxes[block] and not dumbell_near_box:
+                # There are blocks to use in the prediction
+                # Add blocks we want to use
                 block_in_prediction = True
                 boxes_to_use.append(box)
-        print(boxes_to_use)
+        # We have seen the correct block, meaning we are pointed near it. 
+        # We recieved a bad prediction, meaning we may have turned too far
+        # So go forward slightly and try to readjust by turning the opposite direction from before
         if self.block_visible and not block_in_prediction:
             lin = 0.1
             if self.last_turn == 'right':    
-                ang = 0.3
+                ang = 0.4
             elif self.last_turn == 'left':
-                ang = -0.3
+                ang = -0.4
         elif not self.block_visible or not block_in_prediction:
+            # We have not yet seen the correct block so keep turning
             ang = 0.5
             lin = 0.0
         else:
+            # Proportional control for if we have boxes to use
             cx = self.determine_block_center(boxes_to_use)
             h, w, d = self.image.shape
             err = w/2 - cx
@@ -314,22 +318,23 @@ class Action(object):
                 k_p = 1.0 / 400.0
             else:
                 k_p = 1.0 / 500.0
-            lin_k = 0.5
+            lin_k = 0.3
             if dist >= 1.0:
                 lin = 0.4
             else:
-                linerr = dist - 0.45
+                linerr = dist - 0.5
                 lin = linerr * lin_k
             ang = k_p * err
+        # Determine last direction turned
         if ang > 0:
             self.last_turn = 'left'
         else:
             self.last_turn = 'right'
+        # Perform movement for a small amount of time
         init_time = rospy.Time.now().to_sec()
         while not rospy.is_shutdown() and rospy.Time.now().to_sec() - init_time < 0.75:
             self.pub_cmd_vel(lin, ang)
         self.pub_cmd_vel(0,0)
-        rospy.sleep(0.5)
         
     
     # execute action
@@ -350,22 +355,26 @@ class Action(object):
             self.state = GREEN
         return
 
+    """The driver of our node, calls functions dpending on state"""
     def run(self):
         r = rospy.Rate(5)
 
         while not rospy.is_shutdown():
             if self.initialized:
-                print(self.state)
                 if self.state == BLOCK1 or self.state == BLOCK2 or self.state == BLOCK3:
+                    # Move to block
                     self.move_to_block(self.state)
                 elif self.state == GREEN or self.state == BLUE or self.state == RED:
-                # Go to dumbell color
+                    # Go to dumbell color
                     self.move_to_dumbell(self.state)
                 elif self.state == PICKUP:
+                    # Pick up dumbell
                     self.pick_up_gripper()
                 elif self.state == DROP:
+                    # Drop dumbell
                     self.drop_gripper()
                 elif self.state == STOP:
+                    # Done with action, wait for next one
                     self.get_action()
             r.sleep()
 
