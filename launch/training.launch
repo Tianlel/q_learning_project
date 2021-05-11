@@ -3,6 +3,6 @@
   <node name="virtual_reset_world" pkg="q_learning_project" type="virtual_reset_world.py" />
 
   <!-- run q-learning node -->
-  <node name="q_learning" pkg="q_learning_project" type="q_learning.py"/>
+  <node name="q_learning" pkg="q_learning_project" type="q_learning.py" output="screen"/>
 
 </launch>
