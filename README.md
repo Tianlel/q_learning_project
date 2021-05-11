@@ -47,9 +47,36 @@ TODO
 ### High-level description
 TODO
 ### Q-Learning Algorithm Description
+#### Selecting and executing actions for the robot
 TODO
+#### Updating the Q-matrix
+TODO
+#### Determining when to stop iterating through the Q-learning algorithm
+TODO
+#### Executing the path most likely to recieve a reward after the Q-matrix converged 
+TODO
+
 ### Robot Perception Description
+#### Identifying colored dumbbells
+TODO
+#### Identifying numbered blocks
+TODO
+
 ### Robot Manipulation and Movement
+#### Moving to pick up dumbell
+TODO
+#### Picking up dumbell
+TODO
+#### Moving to numbered block with the dumbell
+TODO
+#### Putting the dumbbell back down
+TODO
+
 ### Challenges
+TODO
+
 ### Future Work
+TODO
+
 ### Takeaways
+TODO
