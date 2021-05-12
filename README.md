@@ -54,8 +54,11 @@ TODO
 #### Determining when to stop iterating through the Q-learning algorithm
 TODO
 #### Executing the path most likely to recieve a reward after the Q-matrix converged 
+`dispatch_action.py`. 
 TODO
 
+## High Level Overview of `Action.py`
+`Action.py` splits the perception and movement into `9` different states corresponding to what we want the robot to do. In state `STOP`, the robot listens for an action published by `dispatch_action.py` and then moves onto `GREEN, BLUE, RED`, which are states corresponding to which color to go to. `PICKUP` is the next state, where the robot picks up the dumbbell. Then `BLOCK1, BLOCK2, BLOCK3` are the states where the robot travels with the dumbbell to the block. Lastly, `DROP` tells the robot to drop the dumbbell, and then we repeat by going to `STOP` state. The driver of this is in the `run` function, which runs a while loop depending on state until we shut down the node.
 ### Robot Perception Description
 For both identifying colored dumbbells and numbered blocks, we use the image received from the callback function `image_callback` and store it in `self.image` in the Action class. Here, we also convert the image to HSV format and store it in `self.hsv`.
 #### Identifying colored dumbbells
@@ -74,10 +77,10 @@ Once we have identified the block through `keras_ocr`, set the `self.block_visib
 This is done in the `drop_gripper` function. We set the arm and gripper to a state such that the dumbbell drops vertically and gracefully with as little shaking as possible. We then move back slowly for some time, and reset our state to STOP to continue listening for actions from the `dispatch_action` node. We found appropriate values for the arm and gripper for both these functions by playing with the GUI and testing through observation to see what worked and what didn't work.
 
 ### Challenges
-TODO
+- One of the main challenges we encountered was moving the robot to the block because of the amount of time it took `keras_ocr` to work. We quickly realized that we could not put image recognition in any of our callback functions, because it would stall that thread and cause the callback to not process. Thus, moving into a state driver in the `run` function fixed this. We also realized that there was a large amount of volatility when it came to image recognition. We needed to make sure we were pointing to the correct block and that what we saw was not obscured by dumbbells. Thus, we had a function `check_for_dumbells`. We also had a problem where the robot would sometimes detect wrong characters after we first identified the block. ToWe believe this may be due to reasons such as turning too much and/or being to close to the block. We attempted to fix this by implementing our zig-zag movement, which tracks the last direction we turned.
 
 ### Future Work
-TODO
+-We think one of the places we can improve the most is in driving to the block. First, our movement is very jagged and takes too long. An approach that does not rely on camera data everytime could help with this. Further, our implementation is sometimes too lenient towards wrong detections. This may cause our robot to enter a state of no return and make finding the dumbell harder. We could maybe improve on this by implementing more edge case detection, and making sure our robot is not too cavalier with movement.
 
 ### Takeaways
-TODO
+-Noise is annoying and something that must be taken seriously. For one, picking up and dropping dumbbells are influenced by phsical forces, so making sure these are as smooth as possible is important. Further, as powerful as tools such as image recognition are, they are sometimes wrong and/or take too long. It is important to account for these factors and make our implementation resistant to wrong detections and able to recover fast.
