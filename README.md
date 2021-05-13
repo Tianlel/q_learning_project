@@ -43,19 +43,22 @@
 
 (5x speed)
 ### Objectives description
-TODO
+This project implements a Q-learning algorithm that gives the TurtleBot the ability to learn how to organize items in its environment using reinforcement learning. The goal of the robot is to place the correct colored dumbells in front of the target numbered blocks: Red 3, Green 1, Blue 2. 
+
 ### High-level description
-TODO
+For reinforcement learning, we assign different awards to all possible states that the system can be in (target state: 100; others: 0) and randomly execute (hypothetically -- no actual action is performed) valid robot actions until an end state is achieved. Then we reset the system and repeat this process. For each action we update the Q matrix which stores the potential reward information for each action at each system state, with respect to the Q-learning algorithm. Training is done once the Q matrix has converged and we save it to a `csv` file. Then we choose actions with the maximum Q value and execute these actions using robot perception and movement.   
+
 ### Q-Learning Algorithm Description
+`q_learning.py` implements the Q-learning algorithm, subsribes to `/q_learning/reward` to receive reward for each randomly selected actions, updates the Q-matrix accordingly, checks when the Q-matrix has converged, and saves the Q-matrix to a `csv` file.  
 #### Selecting and executing actions for the robot
-TODO
+There are `9` possible actions the robot can perform. An action matrix is read from `scripts/action_states/action_matrix.txt` where the rows of the action matrix represents a starting state and the columns of the action matrix represents the next state. The matrix is set up such that the values correspond to the actions that can take the robot from the current state to the next. If the transition is impossible, `-1` is assigned. `perform_action()` is executed everytime an reward is received. It finds all possible actions from the action matrix given the current state and randomly selects one using `choice()` from the `random` module. It then  publishes this action to `/q_learning/robot_action` and updates the robot state. If no possible actions are available, an end state is reached and it waits for the world to be reset. 
 #### Updating the Q-matrix
-TODO
+`update_q_matrix()` is the callback function of the `/q_learning/reward` subscriber. With the current state and the selected action, it gets the current Q value and finds the maximum Q value for the next state from the Q-matrix. We assigned a learning rate of of `1` and a discount factor of `0.8`. The new Q value is then calculated based on these and the received reward. 
 #### Determining when to stop iterating through the Q-learning algorithm
-TODO
+This is checked in `update_q_matrix()`. If the updated Q-matrix entry matches the old one for `200` consecutive actions, we consider the matrix to have converged. `run()` runs the Q-learning algorithm until the matrix has converged, and then saves the matrix to  `qmatrix.csv` using `save_q_matrix()`. 
 #### Executing the path most likely to recieve a reward after the Q-matrix converged 
-`dispatch_action.py`. 
-TODO
+`dispatch_actions.py` reads in the saved Q-matrix from `qmatrix.csv` using `read_qmatrix()`. It subscribes to the `/node_status` topic which waits for a signal (that the action listener has successfully initialized) from `action.py` to start dispatching actions. `publish_action()` finds the move with largest Q value given the current robot state; if there are multiple, it chooses the first one and publishs the action. If the largest Q value is `0`, the end state is reached and the node terminates. 
+
 
 ## High Level Overview of `Action.py`
 `Action.py` splits the perception and movement into `9` different states corresponding to what we want the robot to do. In state `STOP`, the robot listens for an action published by `dispatch_action.py` and then moves onto `GREEN, BLUE, RED`, which are states corresponding to which color to go to. `PICKUP` is the next state, where the robot picks up the dumbbell. Then `BLOCK1, BLOCK2, BLOCK3` are the states where the robot travels with the dumbbell to the block. Lastly, `DROP` tells the robot to drop the dumbbell, and then we repeat by going to `STOP` state. The driver of this is in the `run` function, which runs a while loop depending on state until we shut down the node.
@@ -81,6 +84,8 @@ This is done in the `drop_gripper` function. We set the arm and gripper to a sta
 
 ### Future Work
 - We think one of the places we can improve the most is in driving to the block. First, our movement is very jagged and takes too long. An approach that does not rely on camera data everytime could help with this. Further, our implementation is sometimes too lenient towards wrong detections. This may cause our robot to enter a state of no return and make finding the dumbell harder. We could maybe improve on this by implementing more edge case detection, and making sure our robot is not too cavalier with movement.
+- Our training time takes a significant amount of time - about 20 minutes. Since the task is rather simple, we could reduce the training time by reducing the number of iterations that we use to check for convergence and testing with different discount factors and learning rate values. We might also be able to optimize the algorithm by implementing more cost-effective action selection rules. 
 
 ### Takeaways
 - Noise is annoying and something that must be taken seriously. For one, picking up and dropping dumbbells are influenced by phsical forces, so making sure these are as smooth as possible is important. Further, as powerful as tools such as image recognition are, they are sometimes wrong and/or take too long. It is important to account for these factors and make our implementation resistant to wrong detections and able to recover fast.
+- It is important to use pen and paper to draft out the program logic and communication is very important if the partners are working on two closely related nodes that might have overlapping funcionalities. When setting up the connection between `action.py` and `dispatch_actions.py`, we had to discard the first version (let the `dispatch_actions` node wait until the robot has completed one action to publish the next action instead of publishing all actions at once) because we had different strategies in mind. 
